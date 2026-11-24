@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consulat-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: consulat-frontend
+  template:
+    metadata:
+      labels:
+        app: consulat-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/0zeus01/consulat-frontend:latest
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: consulat-frontend
+spec:
+  selector:
+    app: consulat-frontend
+  ports:
+    - port: 4200
+      targetPort: 80
+  type: LoadBalancer

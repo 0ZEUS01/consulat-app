@@ -138,6 +138,54 @@ docker compose up -d
 ```
 - Verified `http://localhost:4200` communicates with the containerized backend (`8080`) and persists records across `docker compose down/up`.
 
-## Upcoming Phases
-- **Phase 5:** CI/CD Pipeline (GitHub Actions + GitHub Container Registry)
-- **Phase 6:** Kubernetes Deployment (Minikube/Kind manifests: Deployments, Services, Ingress)
+---
+
+## Phase 5: CI/CD Pipeline (GitHub Actions & GHCR)
+
+### Files Added
+
+| File | Location | Purpose |
+| :--- | :--- | :--- |
+| **Backend Unit Test** | [`DemandeServiceTest.java`](./backend/src/test/java/com/example/consulat/DemandeServiceTest.java) | JUnit 5 + Mockito unit test verifying `createDemande()` sets default status `EN_ATTENTE` without needing a live database. |
+| **CI/CD Workflow** | [`ci-cd.yml`](./.github/workflows/ci-cd.yml) | Automates testing, building, and pushing Docker images on every push to `dev` or `main`. |
+
+### Pipeline Stages
+1. **`backend-ci`:** Sets up JDK 21, executes `DemandeServiceTest`, and compiles the Spring Boot JAR.
+2. **`frontend-ci`:** Sets up Node 22, installs dependencies, and runs `npm run build` to verify the Angular compilation.
+3. **`docker-push`:** Runs only if both CI jobs succeed (`needs: [backend-ci, frontend-ci]`). Logs into GitHub Container Registry (`ghcr.io`) using `GITHUB_TOKEN`, builds both multi-stage Dockerfiles, and pushes `:latest` images.
+
+### Verification
+- Verified unit test locally with `mvn test -Dtest=DemandeServiceTest`.
+- Pushed to `dev` and confirmed all 3 jobs passed in the GitHub **Actions** tab.
+- Confirmed `consulat-backend:latest` and `consulat-frontend:latest` appeared under GitHub **Packages**.
+
+---
+
+## Phase 6: Kubernetes Deployment (Local Cluster)
+
+### Manifests Added (`k8s/`)
+
+| File | Location | Kubernetes Resources |
+| :--- | :--- | :--- |
+| **Database** | [`k8s/postgres.yaml`](./k8s/postgres.yaml) | `PersistentVolumeClaim` (`1Gi`), `Deployment` (1 replica), `ClusterIP` Service (`db:5432`). |
+| **Backend** | [`k8s/backend.yaml`](./k8s/backend.yaml) | `Deployment` (2 replicas pulling `ghcr.io/0zeus01/consulat-backend:latest`), `LoadBalancer` Service (`8080`). |
+| **Frontend** | [`k8s/frontend.yaml`](./k8s/frontend.yaml) | `Deployment` (2 replicas pulling `ghcr.io/0zeus01/consulat-frontend:latest`), `LoadBalancer` Service (`4200 → 80`). |
+
+### Deployment & Resilience Verification
+```bash
+# Deploy all manifests
+kubectl apply -f k8s/
+
+# Smoke test: verify all 5 pods are Running
+kubectl get pods
+kubectl get services
+
+# Self-healing test: delete a backend pod and confirm automatic recreation
+kubectl delete pod <consulat-backend-pod-name>
+kubectl get pods
+
+# Horizontal scaling test
+kubectl scale deployment consulat-backend --replicas=3
+```
+- Verified end-to-end functionality at `http://localhost:4200`.
+- Merged `dev` into `main` via GitHub Pull Request.
