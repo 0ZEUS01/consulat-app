@@ -8,9 +8,9 @@ on:
 
 permissions:
   contents: read
-  packages: write 
+  packages: write
+
 jobs:
-  # JOB 1: Backend Unit Tests & Build
   backend-ci:
     runs-on: ubuntu-latest
     steps:
@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
@@ -31,7 +31,6 @@ jobs:
         working-directory: ./backend
         run: mvn package -DskipTests
 
-  # JOB 2: Frontend Build Check
   frontend-ci:
     runs-on: ubuntu-latest
     steps:
@@ -49,7 +48,6 @@ jobs:
           npm install
           npm run build
 
-  # JOB 3: Build & Push Docker Images (Only runs if Jobs 1 & 2 pass!)
   docker-push:
     needs: [ backend-ci, frontend-ci ]
     runs-on: ubuntu-latest
@@ -65,7 +63,10 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Lowercase repository owner for Docker tags
-        run: echo "OWNER_LOWER=$(echo '${{ github.repository_owner }}' \vert{} tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+        shell: bash
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          echo "OWNER_LOWER=${OWNER,,}" >> "$GITHUB_ENV"
 
       - name: Build and Push Backend Image
         uses: docker/build-push-action@v6
