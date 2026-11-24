@@ -1,0 +1,36 @@
+<div style="max-width: 700px; margin: 2rem auto; font-family: sans-serif;">
+    <h2>Consulat-App — Suivi des Demandes</h2>
+
+    <form (ngSubmit)="onSubmit()" style="margin-bottom: 2rem; display: flex; gap: 10px;">
+        <input type="text" [(ngModel)]="newDemande.cin" name="cin" placeholder="CIN (ex: AB12345)" required />
+        <select [(ngModel)]="newDemande.typeDocument" name="typeDocument">
+            <option value="Passeport">Passeport</option>
+            <option value="CNIE">CNIE</option>
+            <option value="Acte de Naissance">Acte de Naissance</option>
+            <option value="Légalisation">Légalisation</option>
+        </select>
+        <button type="submit">Ajouter</button>
+    </form>
+
+    <table border="1" cellpadding="8" cellspacing="0" width="100%">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>CIN</th>
+                <th>Document</th>
+                <th>Statut</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr *ngFor="let d of demandes">
+                <td>{{ d.id }}</td>
+                <td>{{ d.cin }}</td>
+                <td>{{ d.typeDocument }}</td>
+                <td><strong>{{ d.statut }}</strong></td>
+            </tr>
+            <tr *ngIf="demandes.length === 0">
+                <td colspan="4" style="text-align: center;">Aucune demande trouvée.</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
