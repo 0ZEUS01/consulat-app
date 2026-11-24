@@ -1,36 +1,111 @@
-\# Consulat-App — Project Documentation
+# Consulat-App — Project Documentation
 
+End-to-end full-stack project simulating a Consular Request Tracker built with **Spring Boot**, **Angular**, **PostgreSQL**, **Docker**, **GitHub Actions (CI/CD)**, and **Kubernetes**.
 
+---
 
-End-to-end full-stack project simulating a Consular Request Tracker (Spring Boot, Angular, PostgreSQL, Docker, CI/CD, Kubernetes).
+## Phase 1: Project Structure & Git Setup
 
+### Folder Architecture
+- `consulat-app/` (Monorepo root)
+  - [`backend/`](./backend/) — Spring Boot REST API
+  - [`frontend/`](./frontend/) — Angular web application
+  - `k8s/` — Kubernetes manifests *(planned)*
+  - `.github/workflows/` — GitHub Actions CI/CD pipelines *(planned)*
+  - [`.gitignore`](./.gitignore) — Excludes build outputs (`backend/target/`, `frontend/node_modules/`, `frontend/dist/`, `.env`)
 
+### Git Commands Used
+1. Initialize the repository, add `.gitignore`, and push to `main`:
+   ```bash
+   git init
+   git add .gitignore
+   git commit -m "chore: initial project setup with gitignore"
+   git branch -M main
+   git remote add origin [https://github.com/](https://github.com/)<USERNAME>/consulat-app.git
+   git push -u origin main
+   ```
+2. Create and switch to a development branch (never code directly on `main`):
+   ```bash
+   git checkout -b dev
+   ```
 
-\## Phase 1: Project Structure \& Git Setup
+---
 
+## Phase 2: Backend Development (Spring Boot + PostgreSQL)
 
+### 1. Database & Environment Configuration
+- **File:** [`backend/src/main/resources/application.properties`](./backend/src/main/resources/application.properties)
+- **Purpose:** Uses environment variables with local fallback defaults so the exact same build works locally, in Docker, and in Kubernetes without code changes.
 
-\### Folder Architecture
+```properties
+spring.datasource.url=jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:consulat_db}
+spring.datasource.username=${DB_USER:postgres}
+spring.datasource.password=${DB_PASSWORD:password}
 
-\- `consulat-app/` (Monorepo root)
+spring.jpa.hibernate.ddl-auto=update
+server.port=8080
+```
 
-&#x20; - `backend/` — Spring Boot REST API
+### 2. 3-Tier Architecture Files (`com.example.consulat`)
 
-&#x20; - `frontend/` — Angular web application
+| Layer | File Location | Role |
+| :--- | :--- | :--- |
+| **Entity** | [`Demande.java`](./backend/src/main/java/com/example/consulat/entity/Demande.java) | Maps the `demande` PostgreSQL table (`id`, `cin`, `typeDocument`, `statut`). |
+| **Repository** | [`DemandeRepository.java`](./backend/src/main/java/com/example/consulat/repository/DemandeRepository.java) | Extends `JpaRepository<Demande, Long>` for automatic SQL CRUD operations. |
+| **Service** | [`DemandeService.java`](./backend/src/main/java/com/example/consulat/service/DemandeService.java) | Business logic: lists requests and automatically sets `statut = "EN_ATTENTE"` on creation. |
+| **Controller** | [`DemandeController.java`](./backend/src/main/java/com/example/consulat/controller/DemandeController.java) | Exposes REST API endpoints under `/api/demandes` with `@CrossOrigin(origins = "*")`. |
 
-&#x20; - `k8s/` — Kubernetes manifests (planned)
+### 3. API Endpoints Implemented
+- `GET /api/demandes` — Returns all consular requests.
+- `POST /api/demandes` — Creates a new consular request (JSON body: `{"cin": "AB12345", "typeDocument": "Passeport"}`).
 
-&#x20; - `.github/workflows/` — GitHub Actions CI/CD pipelines (planned)
+### 4. Verification (Postman)
+- Started Spring Boot on `http://localhost:8080`.
+- Tested `POST /api/demandes` → Returned `200 OK` with auto-generated `id` and `statut: "EN_ATTENTE"`.
+- Tested `GET /api/demandes` → Returned JSON array of persisted records from `consulat_db`.
 
-&#x20; - `.gitignore` — Excludes build outputs (`target/`, `node\_modules/`, `.env`)
+---
 
+## Phase 3: Frontend Development (Angular 19)
 
+### 1. Setup & CLI Generation Commands
+```bash
+ng new frontend --routing --style=css
+cd frontend
+ng generate service services/demande
+ng generate component components/demande-list
+```
 
-\### Git Commands Used
+### 2. Frontend Files & Locations
 
-1\. Initialize repository:
+| Component / Config | File Location | Role |
+| :--- | :--- | :--- |
+| **Environment** | [`environment.ts`](./frontend/src/environments/environment.ts) | Externalizes the backend API URL (`http://localhost:8080/api/demandes`). |
+| **App Config** | [`app.config.ts`](./frontend/src/app/app.config.ts) | Registers `provideHttpClient(withFetch())` for SSR-compatible HTTP calls. |
+| **SSR Bootstrap** | [`main.server.ts`](./frontend/src/main.server.ts) | Passes `BootstrapContext` to `bootstrapApplication` (fixes Angular 19.2+ `NG0401` SSR error). |
+| **Model** | [`demande.model.ts`](./frontend/src/app/models/demande.model.ts) | TypeScript interface mirroring the Java `Demande` entity. |
+| **Service** | [`demande.service.ts`](./frontend/src/app/services/demande.service.ts) | Consumes `GET` and `POST` endpoints using `HttpClient` and `Observable`. |
+| **List Logic** | [`demande-list.component.ts`](./frontend/src/app/components/demande-list/demande-list.component.ts) | Standalone component managing the form state and fetching/refreshing requests. |
+| **List View** | [`demande-list.component.html`](./frontend/src/app/components/demande-list/demande-list.component.html) | Renders the creation form and live table of consular requests. |
+| **Root Component** | [`app.component.ts`](./frontend/src/app/app.component.ts) & [`app.component.html`](./frontend/src/app/app.component.html) | Imports and displays `<app-demande-list></app-demande-list>`. |
 
-&#x20;  ```bash
+### 3. Troubleshooting Note (Angular 19 SSR Fix)
+When running `ng serve` with SSR enabled in Angular 19.2+, `NG0401: Missing Platform` occurred because `bootstrapApplication` lacked a `BootstrapContext`.
+- **Fix:** Updated [`main.server.ts`](./frontend/src/main.server.ts) to accept and pass `context: BootstrapContext`, and updated [`app.config.ts`](./frontend/src/app/app.config.ts) to use `provideHttpClient(withFetch())`.
 
-&#x20;  git init
+### 4. Verification & Git Milestone
+- Ran `ng serve` on `http://localhost:4200`.
+- Verified end-to-end flow: submitting the form in Angular saves to PostgreSQL via Spring Boot and updates the table immediately.
+- Committed and pushed to the `dev` branch:
+  ```bash
+  git add .
+  git commit -m "feat: implement Demande CRUD backend and Angular frontend"
+  git push -u origin dev
+  ```
 
+---
+
+## Upcoming Phases
+- **Phase 4:** Containerization (Dockerfiles for Spring Boot & Angular + Nginx + `docker-compose.yml`)
+- **Phase 5:** CI/CD Pipeline (GitHub Actions + GitHub Container Registry)
+- **Phase 6:** Kubernetes Deployment (Minikube/Kind manifests: Deployments, Services, Ingress)
