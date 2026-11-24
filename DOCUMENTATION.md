@@ -105,7 +105,39 @@ When running `ng serve` with SSR enabled in Angular 19.2+, `NG0401: Missing Plat
 
 ---
 
+## Phase 4: Containerization (Docker & Docker Compose)
+
+### Files Added
+
+| File | Location | Purpose |
+| :--- | :--- | :--- |
+| **Backend Dockerfile** | [`backend/Dockerfile`](./backend/Dockerfile) | Multi-stage build: compiles Spring Boot with Maven, runs `.jar` on lightweight `eclipse-temurin` JRE Alpine image. |
+| **Nginx Config** | [`frontend/nginx.conf`](./frontend/nginx.conf) | Serves compiled Angular static files and handles SPA routing via `try_files`. |
+| **Frontend Dockerfile** | [`frontend/Dockerfile`](./frontend/Dockerfile) | Multi-stage build: compiles Angular with Node 22, serves `dist/frontend/browser` using `nginx:alpine`. |
+| **Docker Compose** | [`docker-compose.yml`](./docker-compose.yml) | Orchestrates `db` (PostgreSQL 16), `backend` (Spring Boot), and `frontend` (Angular + Nginx) on an isolated bridge network (`consulat-net`). |
+
+### Key Architecture Decisions
+- **Multi-Stage Builds:** Keeps production images small and secure by excluding Maven, Node.js, and raw source code from final runtime containers.
+- **Data Persistence:** Mounted a named Docker volume (`postgres_data`) to `/var/lib/postgresql/data` so database records survive container restarts and deletions.
+- **Environment Injection:** Passed `DB_HOST=db` via `docker-compose.yml`, allowing Spring Boot to connect to the PostgreSQL container without modifying Java code.
+
+### Commands & Verification
+```bash
+# Build and start all containers in detached mode
+docker compose up --build -d
+
+# Verify all 3 containers are running
+docker ps
+
+# Inspect backend logs if needed
+docker logs consulat-backend
+
+# Test volume persistence
+docker compose down
+docker compose up -d
+```
+- Verified `http://localhost:4200` communicates with the containerized backend (`8080`) and persists records across `docker compose down/up`.
+
 ## Upcoming Phases
-- **Phase 4:** Containerization (Dockerfiles for Spring Boot & Angular + Nginx + `docker-compose.yml`)
 - **Phase 5:** CI/CD Pipeline (GitHub Actions + GitHub Container Registry)
 - **Phase 6:** Kubernetes Deployment (Minikube/Kind manifests: Deployments, Services, Ingress)
